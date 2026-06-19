@@ -51,7 +51,10 @@
           <el-tag size="small">{{ store.selectedNode.type }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item v-if="store.selectedNode.dataType" label="数据类型">
-          {{ store.selectedNode.dataType }}
+          <el-tag type="info" size="small">{{ store.selectedNode.dataType }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="store.selectedNode.unit" label="单位">
+          <span class="text-cyan-300 font-mono">{{ store.selectedNode.unit }}</span>
         </el-descriptions-item>
         <el-descriptions-item v-if="store.selectedNode.value !== undefined" label="当前值">
           <span class="text-green-400 font-mono">
@@ -60,11 +63,34 @@
         </el-descriptions-item>
         <el-descriptions-item v-if="store.selectedNode.quality" label="质量码">
           <el-tag
-            :type="store.selectedNode.quality === 'Good' ? 'success' : 'danger'"
+            :type="store.selectedNode.quality === 'Good' ? 'success' : store.selectedNode.quality === 'Uncertain' ? 'warning' : 'danger'"
             size="small"
           >
             {{ store.selectedNode.quality }}
           </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="store.selectedNode.timestamp" label="更新时间">
+          <span class="text-gray-300">{{ formatTimestamp(store.selectedNode.timestamp) }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="store.selectedNode.lastQualityChange" label="最近质量变化">
+          <div class="flex items-center gap-1 flex-wrap">
+            <el-tag
+              :type="getQualityTagType(store.selectedNode.lastQualityChange.from)"
+              size="small"
+            >
+              {{ store.selectedNode.lastQualityChange.from }}
+            </el-tag>
+            <span class="text-gray-400">→</span>
+            <el-tag
+              :type="getQualityTagType(store.selectedNode.lastQualityChange.to)"
+              size="small"
+            >
+              {{ store.selectedNode.lastQualityChange.to }}
+            </el-tag>
+            <span class="text-gray-500 text-xs ml-1">
+              ({{ formatTimestamp(store.selectedNode.lastQualityChange.timestamp) }})
+            </span>
+          </div>
         </el-descriptions-item>
         <el-descriptions-item v-if="store.selectedNode.description" label="描述">
           {{ store.selectedNode.description }}
@@ -130,6 +156,18 @@ function handleSubscribe() {
 function handleReadValue() {
   if (!store.selectedNode) return
   ElMessage.success(`${store.selectedNode.name} = ${store.selectedNode.value} ${store.selectedNode.unit || ''}`)
+}
+
+function formatTimestamp(timestamp: number): string {
+  const date = new Date(timestamp)
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function getQualityTagType(quality: string): 'success' | 'warning' | 'danger' {
+  if (quality === 'Good') return 'success'
+  if (quality === 'Uncertain') return 'warning'
+  return 'danger'
 }
 </script>
 

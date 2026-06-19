@@ -1,5 +1,6 @@
 package com.opcua.model;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -18,6 +19,8 @@ public class NodeModel {
     private String description;
     private String browseName;
     private List<NodeModel> children;
+    private Instant timestamp;
+    private QualityChangeModel lastQualityChange;
 
     public NodeModel() {
     }
@@ -120,5 +123,21 @@ public class NodeModel {
 
     public void setChildren(List<NodeModel> children) {
         this.children = children;
+    }
+
+    public Instant getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Instant timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public QualityChangeModel getLastQualityChange() {
+        return lastQualityChange;
+    }
+
+    public void setLastQualityChange(QualityChangeModel lastQualityChange) {
+        this.lastQualityChange = lastQualityChange;
     }
 }

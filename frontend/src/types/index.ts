@@ -1,3 +1,10 @@
+// 质量变化记录
+export interface QualityChange {
+  from: 'Good' | 'Bad' | 'Uncertain'
+  to: 'Good' | 'Bad' | 'Uncertain'
+  timestamp: number
+}
+
 // OPC-UA 节点类型定义
 export interface OPCUANode {
   id: string
@@ -11,6 +18,8 @@ export interface OPCUANode {
   children?: OPCUANode[]
   description?: string
   browseName?: string
+  timestamp?: number
+  lastQualityChange?: QualityChange
 }
 
 // 数据值模型

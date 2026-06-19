@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig } from '../types'
+import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig, QualityChange } from '../types'
 
 export const useOpcuaStore = defineStore('opcua', () => {
   // 状态
@@ -45,7 +45,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: 25.6,
                     unit: '°C',
                     quality: 'Good',
-                    description: '温度传感器'
+                    description: '温度传感器',
+                    timestamp: Date.now()
                   },
                   {
                     id: 'pressure_transmitter',
@@ -56,7 +57,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: 3.45,
                     unit: 'MPa',
                     quality: 'Good',
-                    description: '压力变送器'
+                    description: '压力变送器',
+                    timestamp: Date.now()
                   },
                   {
                     id: 'pump_status',
@@ -66,7 +68,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     dataType: 'Boolean',
                     value: true,
                     quality: 'Good',
-                    description: '泵运行状态'
+                    description: '泵运行状态',
+                    timestamp: Date.now()
                   }
                 ]
               },
@@ -86,7 +89,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: 156.7,
                     unit: 'L/min',
                     quality: 'Good',
-                    description: '流量计'
+                    description: '流量计',
+                    timestamp: Date.now()
                   },
                   {
                     id: 'valve_position',
@@ -97,7 +101,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: 75,
                     unit: '%',
                     quality: 'Good',
-                    description: '阀门开度'
+                    description: '阀门开度',
+                    timestamp: Date.now()
                   },
                   {
                     id: 'motor_speed',
@@ -108,7 +113,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: 1480,
                     unit: 'RPM',
                     quality: 'Good',
-                    description: '电机转速'
+                    description: '电机转速',
+                    timestamp: Date.now()
                   }
                 ]
               }
@@ -124,7 +130,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
     const nodes = getAllVariableNodes()
     nodes.forEach(node => {
       const currentValue = realTimeData.value.get(node.id)?.value ?? node.value
-      
+      const oldQuality = node.quality
+
       let newValue: number | boolean | string
       if (node.dataType === 'Double') {
         const numVal = typeof currentValue === 'number' ? currentValue : parseFloat(String(currentValue))
@@ -140,10 +147,12 @@ export const useOpcuaStore = defineStore('opcua', () => {
         newValue = currentValue
       }
 
+      const newQuality: 'Good' | 'Bad' | 'Uncertain' = Math.random() > 0.98 ? 'Uncertain' : 'Good'
+
       const dataValue: DataValue = {
         nodeId: node.nodeId,
         value: newValue,
-        quality: Math.random() > 0.98 ? 'Uncertain' : 'Good',
+        quality: newQuality,
         timestamp: Date.now(),
         sourceTimestamp: Date.now(),
         serverTimestamp: Date.now()
@@ -151,7 +160,17 @@ export const useOpcuaStore = defineStore('opcua', () => {
 
       realTimeData.value.set(node.id, dataValue)
       node.value = newValue
-      node.quality = dataValue.quality
+      node.quality = newQuality
+      node.timestamp = Date.now()
+
+      if (oldQuality && oldQuality !== newQuality) {
+        const qualityChange: QualityChange = {
+          from: oldQuality,
+          to: newQuality,
+          timestamp: Date.now()
+        }
+        node.lastQualityChange = qualityChange
+      }
 
       // 记录历史数据
       const history = dataHistory.value.get(node.id) || []

@@ -2,6 +2,7 @@ package com.opcua.service;
 
 import com.opcua.model.DataValueModel;
 import com.opcua.model.NodeModel;
+import com.opcua.model.QualityChangeModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -138,8 +139,17 @@ public class OpcuaClientService {
             } else {
                 node.setValue(Math.round((baseValue + variation) * 100.0) / 100.0);
             }
-            // 模拟质量码
-            node.setQuality(random.nextDouble() > 0.97 ? "Uncertain" : "Good");
+            String oldQuality = node.getQuality();
+            String newQuality = random.nextDouble() > 0.97 ? "Uncertain" : "Good";
+            node.setQuality(newQuality);
+            if (oldQuality != null && !oldQuality.equals(newQuality)) {
+                QualityChangeModel qualityChange = new QualityChangeModel();
+                qualityChange.setFrom(oldQuality);
+                qualityChange.setTo(newQuality);
+                qualityChange.setTimestamp(Instant.now());
+                node.setLastQualityChange(qualityChange);
+            }
+            node.setTimestamp(Instant.now());
         }
     }
 
