@@ -37,54 +37,81 @@ public class OpcuaClientService {
         log.info("OPC-UA 客户端服务已初始化（模拟模式）");
     }
 
+    // 维护节点父子关系映射，用于更新祖先节点时间戳
+    private final Map<String, List<String>> nodeParents = new ConcurrentHashMap<>();
+
     /**
      * 初始化模拟节点树
      */
     private void initMockNodes() {
+        Instant now = Instant.now();
+
         // PLC_Area1 节点
         NodeModel plcArea1 = new NodeModel("plc_area1", "PLC_Area1", "ns=2;i=1001", "Object", null, null, null);
         plcArea1.setDescription("1号生产区域 PLC");
+        plcArea1.setTimestamp(now);
 
         NodeModel tempSensor = new NodeModel("temp_sensor", "Temperature_Sensor", "ns=2;i=1002", "Variable", "Double", 25.6, "Good");
         tempSensor.setUnit("°C");
         tempSensor.setDescription("温度传感器");
+        tempSensor.setTimestamp(now);
 
         NodeModel pressureTransmitter = new NodeModel("pressure_transmitter", "Pressure_Transmitter", "ns=2;i=1003", "Variable", "Double", 3.45, "Good");
         pressureTransmitter.setUnit("MPa");
         pressureTransmitter.setDescription("压力变送器");
+        pressureTransmitter.setTimestamp(now);
 
         NodeModel pumpStatus = new NodeModel("pump_status", "Pump_Status", "ns=2;i=1004", "Variable", "Boolean", true, "Good");
         pumpStatus.setDescription("泵运行状态");
+        pumpStatus.setTimestamp(now);
 
         plcArea1.setChildren(List.of(tempSensor, pressureTransmitter, pumpStatus));
 
         // PLC_Area2 节点
         NodeModel plcArea2 = new NodeModel("plc_area2", "PLC_Area2", "ns=2;i=2001", "Object", null, null, null);
         plcArea2.setDescription("2号生产区域 PLC");
+        plcArea2.setTimestamp(now);
 
         NodeModel flowMeter = new NodeModel("flow_meter", "Flow_Meter", "ns=2;i=2002", "Variable", "Double", 156.7, "Good");
         flowMeter.setUnit("L/min");
         flowMeter.setDescription("流量计");
+        flowMeter.setTimestamp(now);
 
         NodeModel valvePosition = new NodeModel("valve_position", "Valve_Position", "ns=2;i=2003", "Variable", "Double", 75.0, "Good");
         valvePosition.setUnit("%");
         valvePosition.setDescription("阀门开度");
+        valvePosition.setTimestamp(now);
 
         NodeModel motorSpeed = new NodeModel("motor_speed", "Motor_Speed", "ns=2;i=2004", "Variable", "Int32", 1480, "Good");
         motorSpeed.setUnit("RPM");
         motorSpeed.setDescription("电机转速");
+        motorSpeed.setTimestamp(now);
 
         plcArea2.setChildren(List.of(flowMeter, valvePosition, motorSpeed));
 
         // Objects 节点
         NodeModel objects = new NodeModel("objects", "Objects", "ns=0;i=85", "Object", null, null, null);
         objects.setDescription("对象文件夹");
+        objects.setTimestamp(now);
         objects.setChildren(List.of(plcArea1, plcArea2));
 
         // Server 节点
         NodeModel server = new NodeModel("server", "Server", "ns=0;i=2253", "Object", null, null, null);
         server.setDescription("OPC-UA 服务器根节点");
+        server.setTimestamp(now);
         server.setChildren(List.of(objects));
+
+        // 建立父子关系映射
+        nodeParents.put("server", Collections.emptyList());
+        nodeParents.put("objects", List.of("server"));
+        nodeParents.put("plc_area1", List.of("objects", "server"));
+        nodeParents.put("plc_area2", List.of("objects", "server"));
+        nodeParents.put("temp_sensor", List.of("plc_area1", "objects", "server"));
+        nodeParents.put("pressure_transmitter", List.of("plc_area1", "objects", "server"));
+        nodeParents.put("pump_status", List.of("plc_area1", "objects", "server"));
+        nodeParents.put("flow_meter", List.of("plc_area2", "objects", "server"));
+        nodeParents.put("valve_position", List.of("plc_area2", "objects", "server"));
+        nodeParents.put("motor_speed", List.of("plc_area2", "objects", "server"));
 
         // 缓存所有节点
         cacheNode(server);
@@ -122,12 +149,38 @@ public class OpcuaClientService {
                     NodeModel pump = nodeCache.get("pump_status");
                     if (pump != null) {
                         pump.setValue(!(Boolean) pump.getValue());
+                        String oldQuality = pump.getQuality();
+                        String newQuality = random.nextDouble() > 0.97 ? "Uncertain" : "Good";
+                        pump.setQuality(newQuality);
+                        if (oldQuality != null && !oldQuality.equals(newQuality)) {
+                            QualityChangeModel qualityChange = new QualityChangeModel();
+                            qualityChange.setFrom(oldQuality);
+                            qualityChange.setTo(newQuality);
+                            qualityChange.setTimestamp(Instant.now());
+                            pump.setLastQualityChange(qualityChange);
+                        }
+                        updateNodeAndAncestorsTimestamp(pump.getId());
                     }
                 }
             } catch (Exception e) {
                 log.error("数据模拟异常", e);
             }
         }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void updateNodeAndAncestorsTimestamp(String nodeId) {
+        Instant now = Instant.now();
+        NodeModel node = nodeCache.get(nodeId);
+        if (node != null) {
+            node.setTimestamp(now);
+        }
+        List<String> parents = nodeParents.getOrDefault(nodeId, Collections.emptyList());
+        for (String parentId : parents) {
+            NodeModel parent = nodeCache.get(parentId);
+            if (parent != null) {
+                parent.setTimestamp(now);
+            }
+        }
     }
 
     private void simulateValue(String nodeId, double baseValue, double range, String dataType) {
@@ -149,7 +202,7 @@ public class OpcuaClientService {
                 qualityChange.setTimestamp(Instant.now());
                 node.setLastQualityChange(qualityChange);
             }
-            node.setTimestamp(Instant.now());
+            updateNodeAndAncestorsTimestamp(nodeId);
         }
     }
 

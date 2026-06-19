@@ -12,8 +12,21 @@ export const useOpcuaStore = defineStore('opcua', () => {
   const isConnected = ref(false)
   const dataHistory = ref<Map<string, Array<{ timestamp: number; value: number }>>>(new Map())
 
+  // 查找节点
+  function findNodeById(nodes: OPCUANode[], id: string): OPCUANode | null {
+    for (const node of nodes) {
+      if (node.id === id) return node
+      if (node.children) {
+        const found = findNodeById(node.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   // 初始化模拟节点树
   function initNodeTree() {
+    const now = Date.now()
     nodeTree.value = [
       {
         id: 'server',
@@ -21,6 +34,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
         nodeId: 'ns=0;i=2253',
         type: 'Object',
         description: 'OPC-UA 服务器根节点',
+        timestamp: now,
         children: [
           {
             id: 'objects',
@@ -28,6 +42,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
             nodeId: 'ns=0;i=85',
             type: 'Object',
             description: '对象文件夹',
+            timestamp: now,
             children: [
               {
                 id: 'plc_area1',
@@ -35,6 +50,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                 nodeId: 'ns=2;i=1001',
                 type: 'Object',
                 description: '1号生产区域 PLC',
+                timestamp: now,
                 children: [
                   {
                     id: 'temp_sensor',
@@ -46,7 +62,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     unit: '°C',
                     quality: 'Good',
                     description: '温度传感器',
-                    timestamp: Date.now()
+                    timestamp: now
                   },
                   {
                     id: 'pressure_transmitter',
@@ -58,7 +74,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     unit: 'MPa',
                     quality: 'Good',
                     description: '压力变送器',
-                    timestamp: Date.now()
+                    timestamp: now
                   },
                   {
                     id: 'pump_status',
@@ -69,7 +85,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     value: true,
                     quality: 'Good',
                     description: '泵运行状态',
-                    timestamp: Date.now()
+                    timestamp: now
                   }
                 ]
               },
@@ -79,6 +95,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                 nodeId: 'ns=2;i=2001',
                 type: 'Object',
                 description: '2号生产区域 PLC',
+                timestamp: now,
                 children: [
                   {
                     id: 'flow_meter',
@@ -90,7 +107,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     unit: 'L/min',
                     quality: 'Good',
                     description: '流量计',
-                    timestamp: Date.now()
+                    timestamp: now
                   },
                   {
                     id: 'valve_position',
@@ -102,7 +119,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     unit: '%',
                     quality: 'Good',
                     description: '阀门开度',
-                    timestamp: Date.now()
+                    timestamp: now
                   },
                   {
                     id: 'motor_speed',
@@ -114,7 +131,7 @@ export const useOpcuaStore = defineStore('opcua', () => {
                     unit: 'RPM',
                     quality: 'Good',
                     description: '电机转速',
-                    timestamp: Date.now()
+                    timestamp: now
                   }
                 ]
               }
@@ -125,8 +142,28 @@ export const useOpcuaStore = defineStore('opcua', () => {
     ]
   }
 
+  // 更新节点及其祖先的更新时间
+  function updateNodeTimestamps(nodes: OPCUANode[], targetId: string, timestamp: number, path: OPCUANode[] = []): boolean {
+    for (const node of nodes) {
+      const currentPath = [...path, node]
+      if (node.id === targetId) {
+        currentPath.forEach(n => {
+          n.timestamp = timestamp
+        })
+        return true
+      }
+      if (node.children) {
+        if (updateNodeTimestamps(node.children, targetId, timestamp, currentPath)) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
   // 模拟实时数据更新
   function simulateDataUpdate() {
+    const now = Date.now()
     const nodes = getAllVariableNodes()
     nodes.forEach(node => {
       const currentValue = realTimeData.value.get(node.id)?.value ?? node.value
@@ -153,28 +190,28 @@ export const useOpcuaStore = defineStore('opcua', () => {
         nodeId: node.nodeId,
         value: newValue,
         quality: newQuality,
-        timestamp: Date.now(),
-        sourceTimestamp: Date.now(),
-        serverTimestamp: Date.now()
+        timestamp: now,
+        sourceTimestamp: now,
+        serverTimestamp: now
       }
 
       realTimeData.value.set(node.id, dataValue)
       node.value = newValue
       node.quality = newQuality
-      node.timestamp = Date.now()
+      updateNodeTimestamps(nodeTree.value, node.id, now)
 
       if (oldQuality && oldQuality !== newQuality) {
         const qualityChange: QualityChange = {
           from: oldQuality,
           to: newQuality,
-          timestamp: Date.now()
+          timestamp: now
         }
         node.lastQualityChange = qualityChange
       }
 
       // 记录历史数据
       const history = dataHistory.value.get(node.id) || []
-      history.push({ timestamp: Date.now(), value: typeof newValue === 'number' ? newValue : 0 })
+      history.push({ timestamp: now, value: typeof newValue === 'number' ? newValue : 0 })
       if (history.length > 100) history.shift()
       dataHistory.value.set(node.id, history)
 
@@ -248,7 +285,16 @@ export const useOpcuaStore = defineStore('opcua', () => {
 
   // 选择节点
   function selectNode(node: OPCUANode) {
-    selectedNode.value = node
+    const realNode = findNodeById(nodeTree.value, node.id) || node
+    if (realNode.type === 'Variable') {
+      const latestData = realTimeData.value.get(realNode.id)
+      if (latestData) {
+        realNode.value = latestData.value
+        realNode.quality = latestData.quality
+        realNode.timestamp = latestData.timestamp
+      }
+    }
+    selectedNode.value = realNode
   }
 
   // 添加订阅

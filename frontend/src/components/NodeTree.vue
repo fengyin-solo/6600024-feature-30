@@ -45,55 +45,89 @@
       <el-divider />
       <h4 class="text-sm font-bold text-cyan-300 mb-2">节点详情</h4>
       <el-descriptions :column="1" size="small" border class="dark-descriptions">
-        <el-descriptions-item label="名称">{{ store.selectedNode.name }}</el-descriptions-item>
-        <el-descriptions-item label="Node ID">{{ store.selectedNode.nodeId }}</el-descriptions-item>
+        <el-descriptions-item label="名称">
+          <span class="text-white">{{ store.selectedNode.name }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="Node ID">
+          <span class="font-mono text-slate-300 text-xs">{{ store.selectedNode.nodeId }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="类型">
-          <el-tag size="small">{{ store.selectedNode.type }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.dataType" label="数据类型">
-          <el-tag type="info" size="small">{{ store.selectedNode.dataType }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.unit" label="单位">
-          <span class="text-cyan-300 font-mono">{{ store.selectedNode.unit }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.value !== undefined" label="当前值">
-          <span class="text-green-400 font-mono">
-            {{ store.selectedNode.value }}{{ store.selectedNode.unit ? ' ' + store.selectedNode.unit : '' }}
-          </span>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.quality" label="质量码">
-          <el-tag
-            :type="store.selectedNode.quality === 'Good' ? 'success' : store.selectedNode.quality === 'Uncertain' ? 'warning' : 'danger'"
-            size="small"
-          >
-            {{ store.selectedNode.quality }}
+          <el-tag :type="getNodeTypeTagType(store.selectedNode.type)" size="small" effect="dark">
+            {{ getNodeTypeLabel(store.selectedNode.type) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.timestamp" label="更新时间">
-          <span class="text-gray-300">{{ formatTimestamp(store.selectedNode.timestamp) }}</span>
+        <el-descriptions-item label="数据类型">
+          <template v-if="store.selectedNode.dataType">
+            <el-tag type="info" size="small" effect="plain">{{ store.selectedNode.dataType }}</el-tag>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.lastQualityChange" label="最近质量变化">
-          <div class="flex items-center gap-1 flex-wrap">
-            <el-tag
-              :type="getQualityTagType(store.selectedNode.lastQualityChange.from)"
-              size="small"
-            >
-              {{ store.selectedNode.lastQualityChange.from }}
-            </el-tag>
-            <span class="text-gray-400">→</span>
-            <el-tag
-              :type="getQualityTagType(store.selectedNode.lastQualityChange.to)"
-              size="small"
-            >
-              {{ store.selectedNode.lastQualityChange.to }}
-            </el-tag>
-            <span class="text-gray-500 text-xs ml-1">
-              ({{ formatTimestamp(store.selectedNode.lastQualityChange.timestamp) }})
+        <el-descriptions-item label="单位">
+          <template v-if="store.selectedNode.unit">
+            <span class="text-cyan-300 font-mono">{{ store.selectedNode.unit }}</span>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="当前值">
+          <template v-if="store.selectedNode.value !== undefined">
+            <span class="text-green-400 font-mono font-semibold">
+              {{ formatValue(store.selectedNode.value, store.selectedNode.dataType) }}{{ store.selectedNode.unit ? ' ' + store.selectedNode.unit : '' }}
             </span>
-          </div>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
         </el-descriptions-item>
-        <el-descriptions-item v-if="store.selectedNode.description" label="描述">
-          {{ store.selectedNode.description }}
+        <el-descriptions-item label="质量码">
+          <template v-if="store.selectedNode.quality">
+            <el-tag
+              :type="getQualityTagType(store.selectedNode.quality)"
+              size="small"
+              effect="dark"
+            >
+              {{ store.selectedNode.quality }}
+            </el-tag>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="更新时间">
+          <template v-if="store.selectedNode.timestamp">
+            <span class="text-slate-300 text-xs font-mono">{{ formatTimestamp(store.selectedNode.timestamp) }}</span>
+            <span class="ml-1 text-slate-500 text-xs">({{ getTimeAgo(store.selectedNode.timestamp) }})</span>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="最近质量变化">
+          <template v-if="store.selectedNode.lastQualityChange">
+            <div class="flex items-center gap-1 flex-wrap">
+              <el-tag
+                :type="getQualityTagType(store.selectedNode.lastQualityChange.from)"
+                size="small"
+                effect="plain"
+              >
+                {{ store.selectedNode.lastQualityChange.from }}
+              </el-tag>
+              <el-icon class="text-slate-400" :size="14"><ArrowRight /></el-icon>
+              <el-tag
+                :type="getQualityTagType(store.selectedNode.lastQualityChange.to)"
+                size="small"
+                effect="dark"
+              >
+                {{ store.selectedNode.lastQualityChange.to }}
+              </el-tag>
+              <div class="w-full mt-1 text-slate-500 text-xs font-mono">
+                {{ formatTimestamp(store.selectedNode.lastQualityChange.timestamp) }}
+              </div>
+            </div>
+          </template>
+          <span v-else class="text-slate-500 text-xs">暂无变化记录</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="描述">
+          <template v-if="store.selectedNode.description">
+            <span class="text-slate-300">{{ store.selectedNode.description }}</span>
+          </template>
+          <span v-else class="text-slate-500 text-xs">—</span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="store.selectedNode.browseName" label="浏览名称">
+          <span class="text-slate-300 font-mono text-xs">{{ store.selectedNode.browseName }}</span>
         </el-descriptions-item>
       </el-descriptions>
 
@@ -121,7 +155,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder, DataLine } from '@element-plus/icons-vue'
+import { Folder, DataLine, ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from '../store/opcua'
 import type { OPCUANode } from '../types'
@@ -155,7 +189,8 @@ function handleSubscribe() {
 
 function handleReadValue() {
   if (!store.selectedNode) return
-  ElMessage.success(`${store.selectedNode.name} = ${store.selectedNode.value} ${store.selectedNode.unit || ''}`)
+  const valueStr = formatValue(store.selectedNode.value, store.selectedNode.dataType)
+  ElMessage.success(`${store.selectedNode.name} = ${valueStr} ${store.selectedNode.unit || ''}`)
 }
 
 function formatTimestamp(timestamp: number): string {
@@ -164,10 +199,51 @@ function formatTimestamp(timestamp: number): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+function getTimeAgo(timestamp: number): string {
+  const diff = Date.now() - timestamp
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+
+  if (hours > 0) return `${hours}小时前`
+  if (minutes > 0) return `${minutes}分钟前`
+  if (seconds > 0) return `${seconds}秒前`
+  return '刚刚'
+}
+
 function getQualityTagType(quality: string): 'success' | 'warning' | 'danger' {
   if (quality === 'Good') return 'success'
   if (quality === 'Uncertain') return 'warning'
   return 'danger'
+}
+
+function getNodeTypeTagType(type: string): 'primary' | 'success' | 'warning' | 'info' {
+  switch (type) {
+    case 'Object': return 'warning'
+    case 'Variable': return 'success'
+    case 'Method': return 'primary'
+    case 'DataType': return 'info'
+    default: return 'info'
+  }
+}
+
+function getNodeTypeLabel(type: string): string {
+  switch (type) {
+    case 'Object': return '对象'
+    case 'Variable': return '变量'
+    case 'Method': return '方法'
+    case 'DataType': return '数据类型'
+    default: return type
+  }
+}
+
+function formatValue(value: any, dataType?: string): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
+  if (dataType === 'Double' && typeof value === 'number') {
+    return value.toFixed(2)
+  }
+  return String(value)
 }
 </script>
 
